@@ -1,0 +1,13 @@
+numpy
+scipy
+nibabel
+scikit-learn
+SimpleITK
+nipype
+
+
+
+nipype安装方式：conda install --channel conda-forge nipype
+参考：
+https://www.jianshu.com/p/8dd2baccfad6?utm_campaign=maleskine&utm_content=note&utm_medium=writer_share&utm_source=weibo
+https://miykael.github.io/nipype_tutorial/notebooks/resources_installation.html
