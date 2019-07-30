@@ -318,9 +318,6 @@ class model(object):
       avr_val_loss,avr_val_IOUS,avr_val_DSs = self.validate(epoch)            
       print("All validation patches Predicted")
 
-
-      # For printing the validation results
-      # F1_score = f1_score(lab2d, pred2d,[0,1,2,3],average=None)
       print("Validation Dice Coefficient.... ")
       print("Background:",avr_val_DSs[0])
       print("Bone:",avr_val_DSs[1])
@@ -334,9 +331,9 @@ class model(object):
         print("Best checkpoint updated from validation results.")
 
       # To save the losses for plotting 
-      print("Average Validation Loss:",avg_val_loss)
+      print("Average Validation Loss:",avr_val_loss)
       with open('Val_loss_GAN.txt', 'a') as f:
-        f.write('%.2e \n' % avg_val_loss)
+        f.write('%.2e \n' % avr_val_loss)
       with open('Train_loss_CE.txt', 'a') as f:
         f.write('%.2e \n' % avg_train_loss_CE)
       with open('Train_loss_UL.txt', 'a') as f:
@@ -384,8 +381,7 @@ class model(object):
           
           total_val_loss += sample_val_loss
           total_idx += sample_idx
-          
-      avr_val_IoUs = IoUs.reshape([-1,F.num_classes]).mean(axis=0)
+      avr_val_IOUS = IoUs.reshape([-1,F.num_classes]).mean(axis=0)
       avr_val_DSs = DSs.reshape([-1,F.num_classes]).mean(axis=0)
       avr_val_loss = total_val_loss/(total_idx*1.0)#在验证集上的平均损失函数
       return avr_val_loss,avr_val_IOUS,avr_val_DSs
