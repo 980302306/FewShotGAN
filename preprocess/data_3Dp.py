@@ -96,15 +96,14 @@ def calc_c_range(data,patch_shape=(64,64,32)):
     return c_range
 
 
-def read_npy_file(item1,item2,get_label=True,do_augment=True,do_patch=True,D=32,H=128,W=128):
+def read_npy_file(item1,item2,get_label=True,do_augment=True,do_patch=True,D=16,H=128,W=128):
     # 读取文件并根据do_patch决定是否做数据扩增
     # 训练的时候做数据扩增，验证和测试的时候不做
     image = np.load(item1)+70.75# 原始数据三个维度对应人体的：左右、前后、上下
     if get_label:
         mask = np.load(item2)
     else:
-        mask = np.array([])
-
+        mask = np.array([]) 
     #随机裁剪
     if do_patch and not do_augment:
         imageShape = image.shape
@@ -113,7 +112,7 @@ def read_npy_file(item1,item2,get_label=True,do_augment=True,do_patch=True,D=32,
         z1 = np.random.randint(low=0, high=imageShape[2]-D, dtype='l')
         image = image[x1:x1+H,y1:y1+W,z1:z1+D]
         if get_label:
-            mask = mask[x1:x1+H,y1:y1+W,z1:z1+D]
+            mask = mask[x1:x1+H,y1:y1+W,z1:z1+D]  
     #随机旋转与裁剪        
     if do_patch and do_augment:
         c_range = calc_c_range(image,patch_shape=(H,W,D))
@@ -139,7 +138,7 @@ def read_npy_file(item1,item2,get_label=True,do_augment=True,do_patch=True,D=32,
         #正太分布随机噪声
         noise = np.random.normal(0, 1, image.shape) 
         image = image+noise
-        image = image.astype(np.float32)
+        image = image.astype(np.float32)  
         if get_label:
             mask = mask.astype(np.float32)    
     
@@ -147,14 +146,13 @@ def read_npy_file(item1,item2,get_label=True,do_augment=True,do_patch=True,D=32,
         if np.random.rand()>0.5:
             image = np.flip(image,0) 
             if get_label:
-                mask = np.flip(mask,0)
-                      
+                mask = np.flip(mask,0)            
     image = np.transpose(image,(2,0,1))#调换维度顺序后，各维度分别是：D,H,W
     image = image[:,:,:,np.newaxis]#在最后增加一个channel维度,得到的维度分别是：D,H,W,channel
     if get_label:
         mask = np.transpose(mask,(2,0,1))#调换维度顺序后，各维度分别是：D,H,W,channel
         mask = mask[:,:,:,np.newaxis]#在最后增加一个channel维度
-    if get_label:  
+    if get_label: 
         return (image,mask)
     else:
         return image

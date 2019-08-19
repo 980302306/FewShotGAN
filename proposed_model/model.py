@@ -18,7 +18,7 @@ from sklearn.metrics import f1_score
 from data_3Dp import *
 from itertools import product
 import time
-
+import datetime
 F = tf.app.flags.FLAGS
 
 
@@ -34,7 +34,6 @@ class model(object):
     self.g_bns = [batch_norm(name='g_bn{}'.format(i,)) for i in range(4)]
     if F.badGAN:
       self.e_bns = [batch_norm(name='e_bn{}'.format(i,)) for i in range(3)]
-
 
   def discriminator(self, patch, reuse=False):
     """
@@ -95,21 +94,25 @@ class model(object):
     Returns: 
     * generated 3D patches
     """
+    #patch_size=(16,128,128) D,H,W
     with tf.variable_scope('G') as scope:
-      sh1, sh2, sh3, sh4 = int(self.patch_shape[0]/16), int(self.patch_shape[0]/8),\
-                           int(self.patch_shape[0]/4), int(self.patch_shape[0]/2)
-
-      h0 = linear(z, sh1*sh1*sh1*512,'g_h0_lin')
-      h0 = tf.reshape(h0, [F.batch_size, sh1, sh1, sh1, 512])
+      d_sh1, d_sh2, d_sh3, d_sh4 = int(self.patch_shape[0]/16), int(self.patch_shape[0]/8),\
+                                   int(self.patch_shape[0]/4), int(self.patch_shape[0]/2)
+      hw_sh1, hw_sh2, hw_sh3, hw_sh4 = int(self.patch_shape[1]/16), int(self.patch_shape[1]/8),\
+                                       int(self.patch_shape[1]/4), int(self.patch_shape[1]/2)  #shape[1]=shape[2]
+                                       
+        
+      h0 = linear(z, d_sh1*hw_sh1*hw_sh1*512,'g_h0_lin')
+      h0 = tf.reshape(h0, [F.batch_size,d_sh1,hw_sh1,hw_sh1, 512])
       h0 = relu(self.g_bns[0](h0,phase))
 
-      h1 = relu(self.g_bns[1](deconv3d(h0, [F.batch_size,sh2,sh2,sh2,256], 
+      h1 = relu(self.g_bns[1](deconv3d(h0, [F.batch_size,d_sh2,hw_sh2,hw_sh2,256], 
                                                           name='g_h1_deconv'),phase))
 
-      h2 = relu(self.g_bns[2](deconv3d(h1, [F.batch_size,sh3,sh3,sh3,128], 
+      h2 = relu(self.g_bns[2](deconv3d(h1, [F.batch_size,d_sh3,hw_sh3,hw_sh3,128], 
                                                           name='g_h2_deconv'),phase))   
 
-      h3 = relu(self.g_bns[3](deconv3d(h2, [F.batch_size,sh4,sh4,sh4,64], 
+      h3 = relu(self.g_bns[3](deconv3d(h2, [F.batch_size,d_sh4,hw_sh4,hw_sh4,64], 
                                                           name='g_h3_deconv'),phase))
 
       h4 = slim.conv3d_transpose(h3,F.num_mod,2,stride=[2,2,2],activation_fn=None,scope='g_h4_deconv')
@@ -157,15 +160,13 @@ class model(object):
 
     # To generate samples from noise
     self.patches_fake = self.generator(self.z_gen, self.phase)
-
     # Forward pass through network with different kinds of training patches 
     self.D_logits_lab, self.D_probdist, _= self.discriminator(self.patches_lab, reuse=False)
     self.D_logits_unlab, _, self.features_unlab\
                        = self.discriminator(self.patches_unlab, reuse=True)
     self.D_logits_fake, _, self.features_fake\
                        = self.discriminator(self.patches_fake, reuse=True)
-
-
+   
     # To obtain Validation Output
     self.Val_output = tf.argmax(self.D_probdist, axis=-1)
 
@@ -176,8 +177,9 @@ class model(object):
     weights = tf.reduce_sum(class_weights * self.labels_1hot, axis=-1)
     unweighted_losses = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.D_logits_lab, labels=self.labels_1hot)
     weighted_losses = unweighted_losses * weights #<tf.Tensor 'mul_1:0' shape=(30, 32, 32, 32) dtype=float32>
+    
     self.d_loss_lab = tf.reduce_mean(weighted_losses)
-
+    
     # Unsupervised loss
     self.unl_lsexp = tf.reduce_logsumexp(self.D_logits_unlab,-1) #计算log(sum(exp()))
     self.fake_lsexp = tf.reduce_logsumexp(self.D_logits_fake,-1)
@@ -193,7 +195,10 @@ class model(object):
     #Feature matching loss
     self.g_loss_fm = tf.reduce_mean(tf.abs(tf.reduce_mean(self.features_unlab,0) \
                                                   - tf.reduce_mean(self.features_fake,0)))
+    
+    
 
+    
     if F.badGAN:
       # Mean and standard deviation for variational inference loss
       self.mu, self.log_siDicea = self.encoder(self.patches_fake, self.phase)
@@ -215,8 +220,8 @@ class model(object):
       self.e_vars = [var for var in t_vars if 'e_' in var.name]
 
     self.saver = tf.train.Saver()
-
-
+    
+  
   """
   Train function
   Defines learning rates and optimizers.
@@ -225,6 +230,7 @@ class model(object):
   def train(self):
 
     # Optimizer operations
+    
     update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
     with tf.control_dependencies(update_ops):
       d_optim = tf.train.AdamOptimizer(F.learning_rate_D, beta1=F.beta1D)\
@@ -235,27 +241,63 @@ class model(object):
         e_optim = tf.train.AdamOptimizer(F.learning_rate_E, beta1=F.beta1E)\
                   .minimize(self.g_loss,var_list=self.e_vars)
 
+
+
     tf.global_variables_initializer().run()
 
-    max_par=0.0
+    TIMESTAMP="{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.datetime.now())
+    d_loss_log_dir = 'd_logs/' + TIMESTAMP
+    g_loss_log_dir = 'g_logs/' + TIMESTAMP
+    merged1 = tf.summary.merge([tf.summary.scalar('d_loss/',self.d_loss)])
+    merged2 = tf.summary.merge([tf.summary.scalar('g_loss/',self.g_loss)])
+    
+    d_writer=tf.summary.FileWriter(d_loss_log_dir,graph=tf.get_default_graph())
+    g_writer=tf.summary.FileWriter(g_loss_log_dir,graph=tf.get_default_graph())
+	
+    if F.load_chkpt:
+        try:
+            load_model(F.checkpoint_dir,self.sess,self.saver)
+            print("\n [*] Checkpoint loaded succesfully!")
+        except:
+            print("\n [!] Checkpoint loading failed!")
+        with open('epoch_idx.txt','r') as f:
+            epoch_initial=f.readline()
+            epoch_initial=int(epoch_initial)
+            idx_initial=f.readline()
+            idx_initial=int(idx_initial)       
+    else:
+        epoch_initial=0
+        idx_initial=0
+        print("\n [*] Checkpoint load not required.")
+        
+    with open("max_par.txt",'r') as f:
+        max_par=f.readline()
+        max_par=float(max_par)
+        
+    #max_par=0.0
     max_loss=100
-    for epoch in xrange(int(F.epoch)):
-      idx = 0      
-      for idx in xrange(int(F.iter_per_epoch)):
+    self.sess.graph.finalize()
+    for epoch in xrange(epoch_initial,int(F.epoch)):
+      if(epoch!=epoch_initial):
+          idx_initial=0
+      idx = 0
+      for idx in xrange(idx_initial,int(F.iter_per_epoch)):
+          #print(xrange(idx_initial,int(F.iter_per_epoch)))
+          
           #载入不带人工标识的训练数据(含CT):
           CT_batch_unlabeled = get_dataBatch(
                   F.train_dir_unlabeled,
-                  self.patch_shape[2],self.patch_shape[0],self.patch_shape[1],F.batch_size,
+                  self.patch_shape[0],self.patch_shape[1],self.patch_shape[2],F.batch_size,#D,W,H
                   get_label=False,# 也读取人工标注
                   do_patch=True)# 读取一批训练数据
           #载入带人工标识的训练数据（含成对的CT和mask）:
           CT_mask_batch_labeled = get_dataBatch(
                   F.train_dir_labeled,
-                  self.patch_shape[2],self.patch_shape[0],self.patch_shape[1],F.batch_size,
+                  self.patch_shape[0],self.patch_shape[1],self.patch_shape[2],F.batch_size,
                   get_label=True,# 也读取人工标注
                   do_patch=True)# 读取一批训练数据
           batch_iter_train = (CT_mask_batch_labeled[0],CT_batch_unlabeled,CT_mask_batch_labeled[1])
-          
+		  
           total_val_loss=0 # total_xx_loss记录的是一个epoch中每一次迭代的loss之和（平均）
           total_train_loss_CE=0
           total_train_loss_UL=0
@@ -265,22 +307,40 @@ class model(object):
           
           patches_lab, patches_unlab, labels = batch_iter_train
           labels = np.squeeze(labels)
+          
           # Network update
           sample_z_gen = np.random.uniform(-1, 1, [F.batch_size, F.noise_dim]).astype(np.float32)
           
-          _ = self.sess.run(d_optim,feed_dict={self.patches_lab:patches_lab,self.patches_unlab:patches_unlab,
+          _= self.sess.run(d_optim,feed_dict={self.patches_lab:patches_lab,self.patches_unlab:patches_unlab,
                                                self.z_gen:sample_z_gen,self.labels:labels, self.phase: True})
+
+          
           if F.badGAN:
               _, _ = self.sess.run([e_optim,g_optim],feed_dict={self.patches_unlab:patches_unlab, self.z_gen:sample_z_gen,
                                    self.z_gen:sample_z_gen,self.phase: True})
           else:
               _ = self.sess.run(g_optim,feed_dict={self.patches_unlab:patches_unlab, self.z_gen:sample_z_gen,
                                                    self.z_gen:sample_z_gen,self.phase: True})
-        
+    
+              
+              
+          if (idx+1) %20==0 and idx !=0:            
+              result=self.sess.run(merged1,feed_dict={self.patches_lab:patches_lab,self.patches_unlab:patches_unlab,
+                                               self.z_gen:sample_z_gen,self.labels:labels, self.phase: True})           
+              d_writer.add_summary(result,epoch*F.iter_per_epoch+idx)                         
+              result_1=self.sess.run(merged2,feed_dict={self.patches_unlab:patches_unlab, self.z_gen:sample_z_gen,
+                                                   self.z_gen:sample_z_gen,self.phase: True})
+              g_writer.add_summary(result_1,epoch*F.iter_per_epoch+idx)
+              d_writer.flush()
+              g_writer.flush()
+
+              
+              
           feed_dict = {self.patches_lab:patches_lab,self.patches_unlab:patches_unlab,
                        self.z_gen:sample_z_gen,self.labels:labels, self.phase: True} 
           
-          # Evaluate losses for plotting/printing purposes   
+          
+		  # Evaluate losses for plotting/printing purposes   
           d_loss_lab = self.d_loss_lab.eval(feed_dict)
           d_loss_unlab_true = self.true_loss.eval(feed_dict)
           d_loss_unlab_fake = self.fake_loss.eval(feed_dict)
@@ -290,7 +350,9 @@ class model(object):
           total_train_loss_UL=total_train_loss_UL+d_loss_unlab_true
           total_train_loss_FK=total_train_loss_FK+d_loss_unlab_fake
           total_gen_FMloss=total_gen_FMloss+g_loss_fm
-
+          
+          
+          
           idx += 1
           if F.badGAN:
               vi_loss = self.vi_loss.eval(feed_dict)
@@ -299,11 +361,9 @@ class model(object):
           else:
               print(("Epoch:[%2d] [%4d/%4d] Labeled loss:%.2e Unlabeled loss:%.2e Fake loss:%.2e Generator loss:%.8f \n")%
                           (epoch, idx,F.iter_per_epoch,d_loss_lab,d_loss_unlab_true,d_loss_unlab_fake,g_loss_fm))
-
-      
-        
-        
-        
+          with open('epoch_idx.txt','w') as f:
+              f.write('%d\n%d\n' %(epoch,idx))
+          
       # Save the curret model
       save_model(F.checkpoint_dir, self.sess, self.saver)
 
@@ -312,10 +372,15 @@ class model(object):
       avg_train_loss_FK=total_train_loss_FK/(idx*1.0)
       avg_gen_FMloss=total_gen_FMloss/(idx*1.0)
 
+	  
+	  
       print('\n\n')
      
       # To compute average CTvise validation loss(cross entropy loss),IOUs and DSs
-      avr_val_loss,avr_val_IOUS,avr_val_DSs = self.validate(epoch)            
+      avr_val_loss,avr_val_IOUS,avr_val_DSs = self.validate(epoch) 
+      #tf.summary.scalar('validation_average_loss',avr_val_loss)
+
+      
       print("All validation patches Predicted")
 
       print("Validation Dice Coefficient.... ")
@@ -323,15 +388,21 @@ class model(object):
       print("Bone:",avr_val_DSs[1])
       print("Dice:",avr_val_DSs[2])
       print("nerve:",avr_val_DSs[3])
+      
+      
 
       # To Save the best model
       if(max_par<(avr_val_DSs[2]+avr_val_DSs[3])):
         max_par=(avr_val_DSs[2]+avr_val_DSs[3])
         save_model(F.best_checkpoint_dir, self.sess, self.saver)
         print("Best checkpoint updated from validation results.")
+        with open('max_par.txt','w') as f:
+          f.write('%.2e \n' % max_par)
+          print("max_par has saved")
 
       # To save the losses for plotting 
       print("Average Validation Loss:",avr_val_loss)
+      
       with open('Val_loss_GAN.txt', 'a') as f:
         f.write('%.2e \n' % avr_val_loss)
       with open('Train_loss_CE.txt', 'a') as f:
@@ -384,6 +455,7 @@ class model(object):
       avr_val_IOUS = IoUs.reshape([-1,F.num_classes]).mean(axis=0)
       avr_val_DSs = DSs.reshape([-1,F.num_classes]).mean(axis=0)
       avr_val_loss = total_val_loss/(total_idx*1.0)#在验证集上的平均损失函数
+      
       return avr_val_loss,avr_val_IOUS,avr_val_DSs
     
     
@@ -421,7 +493,6 @@ class model(object):
           traverse_mask[:,z0:z0+d,x0:x0+h,y0:y0+w,:] += convert_to_onehot(preds[:,:,:,:,np.newaxis],F.num_classes)
           weight[:,z0:z0+d,x0:x0+h,y0:y0+w,:] += 1
           sample_val_loss += val_loss
-          idx += 1
-          
+          idx += 1  
       output_mask = np.argmax(traverse_mask,axis=4)[:,:,:,:,np.newaxis]
       return output_mask,sample_val_loss,idx

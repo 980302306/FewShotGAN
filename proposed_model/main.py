@@ -8,8 +8,8 @@ from test import *
 
 # Define flags
 flags = tf.app.flags
-flags.DEFINE_integer("epoch", 300, "Number of training epochs (default: 300)")
-flags.DEFINE_integer("iter_per_epoch", 2, "number of iteration per epoch(default: 1000)")#训练阶段，每个epoch迭代的次数
+flags.DEFINE_integer("epoch", 120, "Number of training epochs (default: 300)")
+flags.DEFINE_integer("iter_per_epoch", 1000, "number of iteration per epoch(default: 1000)")#训练阶段，每个epoch迭代的次数
 flags.DEFINE_float("learning_rate_D", 0.0001, "Learning rate of Adam optimizer for Discriminator (default: 0.0001)")
 flags.DEFINE_float("learning_rate_G", 0.0001, "Learning rate of Adam optimizer for Generator (default: 0.0001)")
 flags.DEFINE_float("learning_rate_E", 0.0001, "Learning rate of Adam optimizer for Encoder (default: 0.0001)")
@@ -38,12 +38,12 @@ flags.DEFINE_string("best_checkpoint_dir", "checkpoint/best", "Directory name to
 flags.DEFINE_string("results_dir", "results/", "Directory name to save the results [results]")
 flags.DEFINE_string("validate_output_save_root","validate_output","predicted masks of validation dataset saved here")
 
-flags.DEFINE_boolean("load_chkpt", False, "True for loading saved checkpoint")
+flags.DEFINE_boolean("load_chkpt",False, "True for loading saved checkpoint")
 flags.DEFINE_boolean("training", True, "True for Training ")
 flags.DEFINE_boolean("testing", False, "True for Testing ")
 flags.DEFINE_boolean("badGAN", False, "True if you want to run badGAN based model ")
 
-flags.DEFINE_integer("batch_size", 2, "The size of batch images [64]")
+flags.DEFINE_integer("batch_size", 4, "The size of batch images [64]")
 
 flags.DEFINE_integer("num_mod", 1, "Number of modalities of the input 3-D image")
 flags.DEFINE_integer("num_classes", 4, "Number of output classes to segment")
@@ -69,7 +69,7 @@ def main(_):
   gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=FLAGS.gpu_frac)
 
   # Parameters of extracted training and testing patches
-  patch_shape=(32,32,32)
+  patch_shape=(32,64,64)
   extraction_step=(8,8,8)
   testing_extraction_shape=(8,8,8)
 
