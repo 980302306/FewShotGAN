@@ -153,6 +153,7 @@ class model(object):
     self.z_gen = tf.placeholder(tf.float32, [None, F.noise_dim], name='noise')
     self.labels = tf.placeholder(tf.uint8, [None, self.patch_shape[0], self.patch_shape[1],
                                                          self.patch_shape[2]], name='image_labels')
+    print('self.labels.shape %d,%d,%d'%(self.labels.shape[1],self.labels.shape[2],self.labels.shape[3]))													 
     self.phase = tf.placeholder(tf.bool)
 
     #To make one hot of labels
@@ -403,6 +404,14 @@ class model(object):
       # To save the losses for plotting 
       print("Average Validation Loss:",avr_val_loss)
       
+      with open('Background.txt', 'a') as f:
+        f.write('%.2e \n' % avr_val_DSs[0])
+      with open('Bone.txt', 'a') as f:
+        f.write('%.2e \n' % avr_val_DSs[1])
+      with open('Dice.txt', 'a') as f:
+        f.write('%.2e \n' % avr_val_DSs[2])
+      with open('nerve.txt', 'a') as f:
+        f.write('%.2e \n' % avr_val_DSs[3])        
       with open('Val_loss_GAN.txt', 'a') as f:
         f.write('%.2e \n' % avr_val_loss)
       with open('Train_loss_CE.txt', 'a') as f:
@@ -475,7 +484,6 @@ class model(object):
           y0list = np.append( y0list,W-w )    # 如果不整除，则最后一个滑窗取不等距到尽头
       if not z0list[-1] == D-d:
           z0list = np.append( z0list,D-d )    # 如果不整除，则最后一个滑窗取不等距到尽头
-          
       traverse_mask = np.zeros( np.append(image.shape[0:-1],F.num_classes) )
       weight = np.zeros(imageShape)
        

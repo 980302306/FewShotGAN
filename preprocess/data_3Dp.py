@@ -167,9 +167,10 @@ def get_files(file_dir,get_label=True,do_shuffle=True):
     mask_list = []
     for file in os.listdir(file_dir+'/CT'):
         image_list.append(file_dir+'/CT'+'/'+file)
-    if get_label:
-        for file in os.listdir(file_dir+'/SegmentationLabel'):
+        if get_label:
             mask_list.append(file_dir+'/SegmentationLabel'+'/'+file)
+        #for file in os.listdir(file_dir+'/SegmentationLabel'):
+            
         
     # step2: 对生成的图片路径和标签做打乱处理
     # 利用shuffle打乱顺序
