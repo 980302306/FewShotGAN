@@ -118,7 +118,7 @@ class model(object):
       h4 = slim.conv3d_transpose(h3,F.num_mod,2,stride=[2,2,2],activation_fn=None,scope='g_h4_deconv')
       #h4 = deconv3d_WN(h3, F.num_mod, name='g_h4_deconv')#该方式要求指定固定的batch_size，不利于验证和测试阶段逐张喂CT，故换为slim.conv3d_transpose，实现相同的功能
 
-      return tf.nn.tanh(h4)
+      return h4
 
   def encoder(self, patch, phase):
     """
@@ -265,10 +265,23 @@ class model(object):
             epoch_initial=f.readline()
             epoch_initial=int(epoch_initial)
             idx_initial=f.readline()
-            idx_initial=int(idx_initial)       
+            idx_initial=int(idx_initial)
+        with open('record_loss.txt','r') as f:
+            total_train_loss_CE=f.readline()
+            total_train_loss_CE=float(total_train_loss_CE)
+            total_train_loss_UL=f.readline()
+            total_train_loss_UL=float(total_train_loss_UL)
+            total_train_loss_FK=f.readline()
+            total_train_loss_FK=float(total_train_loss_FK)
+            total_gen_FMloss=f.readline()
+            total_gen_FMloss=float(total_gen_FMloss)
     else:
         epoch_initial=0
         idx_initial=0
+        total_train_loss_CE=0
+        total_train_loss_UL=0
+        total_train_loss_FK=0
+        total_gen_FMloss =0
         print("\n [*] Checkpoint load not required.")
         
     with open("max_par.txt",'r') as f:
@@ -299,11 +312,7 @@ class model(object):
                   do_patch=True)# 读取一批训练数据
           batch_iter_train = (CT_mask_batch_labeled[0],CT_batch_unlabeled,CT_mask_batch_labeled[1])
 		  
-          total_val_loss=0 # total_xx_loss记录的是一个epoch中每一次迭代的loss之和（平均）
-          total_train_loss_CE=0
-          total_train_loss_UL=0
-          total_train_loss_FK=0
-          total_gen_FMloss =0
+
 
           
           patches_lab, patches_unlab, labels = batch_iter_train
@@ -364,15 +373,19 @@ class model(object):
                           (epoch, idx,F.iter_per_epoch,d_loss_lab,d_loss_unlab_true,d_loss_unlab_fake,g_loss_fm))
           with open('epoch_idx.txt','w') as f:
               f.write('%d\n%d\n' %(epoch,idx))
-          
+          with open('record_loss.txt','w') as f:
+              f.write('%.2f\n%.2f\n%.2f\n%.2f\n'%(total_train_loss_CE,total_train_loss_UL,total_train_loss_FK,total_gen_FMloss))
       # Save the curret model
       save_model(F.checkpoint_dir, self.sess, self.saver)
-
       avg_train_loss_CE=total_train_loss_CE/(idx*1.0)
       avg_train_loss_UL=total_train_loss_UL/(idx*1.0)
       avg_train_loss_FK=total_train_loss_FK/(idx*1.0)
       avg_gen_FMloss=total_gen_FMloss/(idx*1.0)
-
+      #reset to zero
+      total_train_loss_CE=0
+      total_train_loss_UL=0
+      total_train_loss_FK=0
+      total_gen_FMloss =0
 	  
 	  
       print('\n\n')
@@ -398,7 +411,7 @@ class model(object):
         save_model(F.best_checkpoint_dir, self.sess, self.saver)
         print("Best checkpoint updated from validation results.")
         with open('max_par.txt','w') as f:
-          f.write('%.2e \n' % max_par)
+          f.write('%.2f \n' % max_par)
           print("max_par has saved")
 
       # To save the losses for plotting 
