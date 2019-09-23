@@ -38,7 +38,7 @@ flags.DEFINE_string("best_checkpoint_dir", "checkpoint/best", "Directory name to
 flags.DEFINE_string("results_dir", "results/", "Directory name to save the results [results]")
 flags.DEFINE_string("validate_output_save_root","validate_output","predicted masks of validation dataset saved here")
 
-flags.DEFINE_boolean("load_chkpt",False, "True for loading saved checkpoint")
+flags.DEFINE_boolean("load_chkpt",True, "True for loading saved checkpoint")
 flags.DEFINE_boolean("training", True, "True for Training ")
 flags.DEFINE_boolean("testing", False, "True for Testing ")
 flags.DEFINE_boolean("badGAN", False, "True if you want to run badGAN based model ")

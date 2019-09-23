@@ -152,8 +152,7 @@ class model(object):
 
     self.z_gen = tf.placeholder(tf.float32, [None, F.noise_dim], name='noise')
     self.labels = tf.placeholder(tf.uint8, [None, self.patch_shape[0], self.patch_shape[1],
-                                                         self.patch_shape[2]], name='image_labels')
-    print('self.labels.shape %d,%d,%d'%(self.labels.shape[1],self.labels.shape[2],self.labels.shape[3]))													 
+                                                         self.patch_shape[2]], name='image_labels')											 
     self.phase = tf.placeholder(tf.bool)
 
     #To make one hot of labels
@@ -174,7 +173,7 @@ class model(object):
     # Supervised loss
     # Weighted cross entropy loss (You can play with these values)
     # Weights of different class are: Background- 0.33, Bone- 1.5, Dice- 0.83, nerve- 1.33
-    class_weights = tf.constant([[0.33, 1.5, 0.83, 1.33]])
+    class_weights = tf.constant([[1.0, 1.0, 10.0, 10.0]])
     weights = tf.reduce_sum(class_weights * self.labels_1hot, axis=-1)
     unweighted_losses = tf.nn.softmax_cross_entropy_with_logits_v2(logits=self.D_logits_lab, labels=self.labels_1hot)
     weighted_losses = unweighted_losses * weights #<tf.Tensor 'mul_1:0' shape=(30, 32, 32, 32) dtype=float32>
@@ -196,9 +195,6 @@ class model(object):
     #Feature matching loss
     self.g_loss_fm = tf.reduce_mean(tf.abs(tf.reduce_mean(self.features_unlab,0) \
                                                   - tf.reduce_mean(self.features_fake,0)))
-    
-    
-
     
     if F.badGAN:
       # Mean and standard deviation for variational inference loss
@@ -246,14 +242,16 @@ class model(object):
 
     tf.global_variables_initializer().run()
 
-    TIMESTAMP="{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.datetime.now())
-    d_loss_log_dir = 'd_logs/' + TIMESTAMP
-    g_loss_log_dir = 'g_logs/' + TIMESTAMP
-    merged1 = tf.summary.merge([tf.summary.scalar('d_loss/',self.d_loss)])
-    merged2 = tf.summary.merge([tf.summary.scalar('g_loss/',self.g_loss)])
-    
-    d_writer=tf.summary.FileWriter(d_loss_log_dir,graph=tf.get_default_graph())
-    g_writer=tf.summary.FileWriter(g_loss_log_dir,graph=tf.get_default_graph())
+# =============================================================================
+#     TIMESTAMP="{0:%Y-%m-%dT%H-%M-%S/}".format(datetime.datetime.now())
+#     d_loss_log_dir = 'd_logs/' + TIMESTAMP
+#     g_loss_log_dir = 'g_logs/' + TIMESTAMP
+#     merged1 = tf.summary.merge([tf.summary.scalar('d_loss/',self.d_loss)])
+#     merged2 = tf.summary.merge([tf.summary.scalar('g_loss/',self.g_loss)])
+#     
+#     d_writer=tf.summary.FileWriter(d_loss_log_dir,graph=tf.get_default_graph())
+#     g_writer=tf.summary.FileWriter(g_loss_log_dir,graph=tf.get_default_graph())
+# =============================================================================
 	
     if F.load_chkpt:
         try:
@@ -296,8 +294,6 @@ class model(object):
           idx_initial=0
       idx = 0
       for idx in xrange(idx_initial,int(F.iter_per_epoch)):
-          #print(xrange(idx_initial,int(F.iter_per_epoch)))
-          
           #载入不带人工标识的训练数据(含CT):
           CT_batch_unlabeled = get_dataBatch(
                   F.train_dir_unlabeled,
@@ -317,7 +313,8 @@ class model(object):
           
           patches_lab, patches_unlab, labels = batch_iter_train
           labels = np.squeeze(labels)
-          
+
+		  
           # Network update
           sample_z_gen = np.random.uniform(-1, 1, [F.batch_size, F.noise_dim]).astype(np.float32)
           
@@ -332,17 +329,19 @@ class model(object):
               _ = self.sess.run(g_optim,feed_dict={self.patches_unlab:patches_unlab, self.z_gen:sample_z_gen,
                                                    self.z_gen:sample_z_gen,self.phase: True})
     
+            
               
-              
-          if (idx+1) %20==0 and idx !=0:            
-              result=self.sess.run(merged1,feed_dict={self.patches_lab:patches_lab,self.patches_unlab:patches_unlab,
-                                               self.z_gen:sample_z_gen,self.labels:labels, self.phase: True})           
-              d_writer.add_summary(result,epoch*F.iter_per_epoch+idx)                         
-              result_1=self.sess.run(merged2,feed_dict={self.patches_unlab:patches_unlab, self.z_gen:sample_z_gen,
-                                                   self.z_gen:sample_z_gen,self.phase: True})
-              g_writer.add_summary(result_1,epoch*F.iter_per_epoch+idx)
-              d_writer.flush()
-              g_writer.flush()
+# =============================================================================
+#           if (idx+1) %20==0 and idx !=0:            
+#               result=self.sess.run(merged1,feed_dict={self.patches_lab:patches_lab,self.patches_unlab:patches_unlab,
+#                                                self.z_gen:sample_z_gen,self.labels:labels, self.phase: True})           
+#               d_writer.add_summary(result,epoch*F.iter_per_epoch+idx)                         
+#               result_1=self.sess.run(merged2,feed_dict={self.patches_unlab:patches_unlab, self.z_gen:sample_z_gen,
+#                                                    self.z_gen:sample_z_gen,self.phase: True})
+#               g_writer.add_summary(result_1,epoch*F.iter_per_epoch+idx)
+#               d_writer.flush()
+#               g_writer.flush()
+# =============================================================================
 
               
               
@@ -359,10 +358,8 @@ class model(object):
           total_train_loss_CE=total_train_loss_CE+d_loss_lab
           total_train_loss_UL=total_train_loss_UL+d_loss_unlab_true
           total_train_loss_FK=total_train_loss_FK+d_loss_unlab_fake
-          total_gen_FMloss=total_gen_FMloss+g_loss_fm
-          
-          
-          
+          total_gen_FMloss=total_gen_FMloss+g_loss_fm         
+        
           idx += 1
           if F.badGAN:
               vi_loss = self.vi_loss.eval(feed_dict)
@@ -374,7 +371,7 @@ class model(object):
           with open('epoch_idx.txt','w') as f:
               f.write('%d\n%d\n' %(epoch,idx))
           with open('record_loss.txt','w') as f:
-              f.write('%.2f\n%.2f\n%.2f\n%.2f\n'%(total_train_loss_CE,total_train_loss_UL,total_train_loss_FK,total_gen_FMloss))
+              f.write('%.2f\n%.2f\n%.2f\n%.2f\n'%(total_train_loss_CE,total_train_loss_UL,total_train_loss_FK,total_gen_FMloss))		
       # Save the curret model
       save_model(F.checkpoint_dir, self.sess, self.saver)
       avg_train_loss_CE=total_train_loss_CE/(idx*1.0)
