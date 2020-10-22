@@ -196,6 +196,9 @@ class model(object):
     self.g_loss_fm = tf.reduce_mean(tf.abs(tf.reduce_mean(self.features_unlab,0) \
                                                   - tf.reduce_mean(self.features_fake,0)))
     
+    
+
+    
     if F.badGAN:
       # Mean and standard deviation for variational inference loss
       self.mu, self.log_siDicea = self.encoder(self.patches_fake, self.phase)
